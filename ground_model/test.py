@@ -21,8 +21,13 @@ points = np.array([[0.5, 0.5, 0],
 
 
 
-plt.scatter(points[:,0], points[:,1])
-#plt.show()
+
+#plt.scatter(points[:,0], points[:,1])
+
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(points[:,0], points[:,1], points[:, 2], s=1)
+plt.show()
 
 #Converts np-array of points into np-array of their bins
 def get_bin_keys(points, d_alpha, d_r):
@@ -39,6 +44,9 @@ def make_dicts(bin_keys, points):
     min_bin_dict = {}
     seg_dict = {}
     min_seg_dict = {}
+    circ_dict = {}
+    min_circ_dict = {}
+
     for key in bin_indexes:
         #Returns indexes of points in same bin
         indexes = np.where((bin_keys == key).all(axis=1))[0]
@@ -53,17 +61,33 @@ def make_dicts(bin_keys, points):
         points_in_seg = points[indexes_segs, :]
         points_in_seg = points_in_seg[np.argsort(points_in_seg[:, 2])]
         seg_dict[key[0]] = points_in_seg
-        min_seg_dict[key[0]] = points_in_seg[0,:]
-    return bin_dict, min_bin_dict, seg_dict, min_seg_dict
+        min_seg_dict[key[0]] = points_in_seg[0, :]
 
+        #Same thing but for different circles
+        indexes_circs = np.where(bin_keys[:, 1] == key[1])[0]
+        points_in_circ = points[indexes_circs, :]
+        points_in_circ = points_in_seg[np.argsort(points_in_seg[:, 2])]
+        circ_dict[key[1]] = points_in_circ
+        min_circ_dict[key[0]] = points_in_circ[0, :]
+
+    return bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict
+
+
+    def make_seg_line(min_seg_dict):
+
+        for bin in range()
 def get_min_PL(bin_dict):
     return
 
+#Assume the pointcloud has gone through initial pruning with r < 100 or similar
 d_alpha = (math.pi/2)/2
 d_r = 1
 bin_keys = get_bin_keys(points, d_alpha, d_r)
-bin_dict, min_bin_dict, seg_dict, min_seg_dict = make_dicts(bin_keys, points)
+bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, points)
 
+print(min_seg_dict)
+print("-------------")
+print(min_bin_dict)
 #TODO Most likely points are selected as initial seeds
 
 #TODO Make sure there are no gaps with no values - extrapolate from neighbours

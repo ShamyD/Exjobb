@@ -59,6 +59,8 @@ if __name__ == '__main__':
         ax = fig.add_subplot(projection='3d')
         # ax.scatter(xarray, yarray, zarray, s=1, c=[0,0,0.5])
         ax.scatter(cgp[:, 0], cgp[:, 1], np.multiply(np.sin(cgp[:, 0]), np.cos(cgp[:, 1])), s=1, c=[0, 0, 0.5])
+        #Wireframe requires data to be in matrix format
+        ax.plot_wireframe(xx, yy, np.multiply(np.sin(xx), np.cos(yy)))#, s=1, c=[0, 0, 0.5])
         ax.scatter(cgp[:, 0], cgp[:, 1], cgp[:, 2], s=2, c=[1, 0, 0])
         plt.show()
 
