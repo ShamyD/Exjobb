@@ -78,18 +78,22 @@ def hyperparameter_optimizer(data_dict, N, initial_guess):
     return result.x
 
 
-if False:
+
+
+#------------------ Computations to be added in main ------------------------------------#
+if True:
     a = np.array([1])
     b = np.array([1, 2, 3])
     #print(make_cov_fcn(a, b))
     #print(make_cov_fcn(b,b,is_noise=True))
-    s = np.array([[0.1, 4],
-                 [0.2, 4.3],
-                 [0.3, 5]])
+    s = np.array([[0.1, 1],
+                  [0.2, 0.4],
+                  [0.3, -0.3],
+                  [0.4, -1]])
     bin_points = np.array([0.22])
     print(GPR_predict(s, bin_points))
 
-if True:
+if False:
     def test_func(x):
         return (x[0] ** 2) * (x[1] ** 2)
 
@@ -97,8 +101,8 @@ if True:
         return np.array([2 * x[0] * x[1] ** 2, 2 * (x[1] ** 2) * x[0]])
 
 
-    init = np.array([2,2])
-    res = minimize(test_func, init, jac=test_grad, tol=0.0000000001, method='Newton-CG')
+    init = np.array([2, 2])
+    res = minimize(fun=test_func, x0=init, jac=test_grad, tol=0.01, method='BFGS')
     print(res.x)
 
 if False: #test partial grad-matrices
