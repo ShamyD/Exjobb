@@ -3,32 +3,7 @@ import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-import math
-
-points = np.array([[0.5, 0.5, 0],
-                   [0, 0.5, 0.1],
-                   [0.5, 0, 0.2],
-                   [1, 1, 0.3],
-                   [1, 2, 0.4],
-                   [2, 1, 0.5],
-                   [0.5, 1, 0.6],
-                   [1, 0.5, 0.7],
-                   [1, 0.6, 0.8],
-                   [0.55, 1.1, 0.9]])
-
-#print(np.arctan2(points[:,1],points[:,0])/(math.pi/6))
-#print(np.ceil(np.arctan2(points[:,1],points[:,0])/(math.pi/6)))
-
-
-
-
-
-#plt.scatter(points[:,0], points[:,1])
-
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(points[:,0], points[:,1], points[:, 2], s=1)
-plt.show()
+from HybridRegression import *
 
 #Converts np-array of points into np-array of their bins
 def get_bin_keys(points, d_alpha, d_r):
@@ -55,7 +30,7 @@ def make_dicts(bin_keys, points):
         #Sort these points according to z-axis
         points_in_bin = points_in_bin[np.argsort(points_in_bin[:, 2])]
         bin_dict[tuple(key)] = points_in_bin
-        min_bin_dict[tuple(key)] = points_in_bin[0,:]
+        min_bin_dict[tuple(key)] = points_in_bin[0, :]
 
         #Same thing but for the different segments
         indexes_segs = np.where(bin_keys[:, 0] == key[0])[0]
@@ -74,26 +49,71 @@ def make_dicts(bin_keys, points):
     return bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict
 
 
-def find_min_max_segment_index():
+def find_min_max_index(bin_keys):
+    segs = bin_keys[:, 0]
+    circs = bin_keys[:, 1]
+    max_min_segment = [np.min(segs), np.max(segs)]
+    max_depth_ind = np.max(circs)
 
-    return
+    return max_depth_ind, max_min_segment
 #Takes in min_bin_dict and for every bin in a segment, retreives the smallest values (min_bin_dict)
 #Prodces a dictionary of arrays for every segment
 # If a bin between 0 and max_depth_index has no value, this is skipped. all circles - [0:max_depth_index]
 def make_seg_line(min_bin_dict, max_depth_index, min_max_segment):
     SLm_dict = {} #SLm_dict[m] gives array of points for the m:th segment
+    circle_index_dict = {} #complementary dictionary to save which circle points belong to
     for segment in range(min_max_segment[0], min_max_segment[1]+1):
         segment_array = np.empty((0, 3), float)
+        circle_array = np.empty((0, 1), int)
         for circle in range(max_depth_index+1):
             if (segment, circle) in min_bin_dict:
-                segment_array = np.vstack([segment_array, min_bin_dict[segment, circle]])
+                tmp_array = min_bin_dict[segment, circle]
+                segment_array = np.vstack([segment_array, tmp_array])
+                circle_array = np.vstack([circle_array, np.array([circle])])
         SLm_dict[segment] = segment_array
+        circle_index_dict[segment] = circle_array
+    return SLm_dict, circle_index_dict
 
-    return SLm_dict
+def make_circles(seg_dict, circle_dict_index, max_depth_index, min_max_segment):
+    circle_dict = {}
+    first_segment = True
+    for segment in range(min_max_segment[0], min_max_segment[1]+1):
+        segment_array = seg_dict[segment]
+        circle_index_array = circle_dict_index[segment]
+        for circle_index in range(max_depth_index+1):
+            if first_segment: #loop of first segment has to create empty arrays for stacking
+                circle_array = np.empty((0, 3), float)
+            else:
+                circle_array = circle_dict[circle_index]
+            inds = np.argwhere(circle_index_array[:, 0] == circle_index)
+            inds = inds.reshape(inds.size)
+            tmp_array = segment_array[inds, :]
+            #print(str(circle_index == np.ceil(np.linalg.norm(tmp_array[:, :2], axis=1) / 1)) + " " + str(circle_index))
+            circle_dict[circle_index] = np.vstack([circle_array, tmp_array])
+        first_segment = False
+
+    return circle_dict
     #for bin in range()
 
+#assumes 1-dim input in pos
+def grad_filter(value, pos, large_slope):
+    gradients = np.gradient(value, pos)  # - regr the f-values and r is the spacing
+    degrees = np.arctan(gradients) * (180 / np.pi) #conversion to degrees for comparison
+    large_slope_indexes = np.argwhere(degrees >= large_slope)
+    large_slope_indexes = large_slope_indexes.reshape(large_slope_indexes.shape[0],)
+    clean_position_array = np.delete(pos, large_slope_indexes)
+    clean_value_array = np.delete(value, large_slope_indexes)
+
+    #For every index in large_slope_indexes, find closest pos in clean_position_array
+    for ind in large_slope_indexes:
+        idx = (np.abs(clean_position_array - pos[ind])).argmin() #index in clean array which is to be replicated
+        value[ind] = clean_value_array[idx]
+
+    return value
+
 #Take in a dictionary of segment ndarrays, filters these with the RLWR-regression and smoothes the result with a gradient filter
-def filter_segments(SLm_dict, fract):
+#Will be returned in the same format as given
+def filter_segments(SLm_dict, fract, iterations, large_slope):
     lowess = sm.nonparametric.lowess
     for segment in SLm_dict:
         segment_points = SLm_dict[segment]
@@ -101,36 +121,129 @@ def filter_segments(SLm_dict, fract):
         r = np.linalg.norm(segment_points[:, :2], axis=1)
         regr = lowess(z, r, frac=fract, it=iterations, return_sorted=False)
         #Gradient filter on points
-        gradients = np.gradient(regr, r) #- regr the f-values and r is the spacing
-        degrees = np.arctan(gradients)*(180/np.pi)
+        filtered_values = grad_filter(regr, r, large_slope)
 
-        large_slope_indexes = SDKLÖJHGFDSDGHKLÖLKJHGFDDFGHJKLÖLKJHGFDDFGHJKLÖLKJHGFDFGHJKKJHFDFGHJKLLKJHGFDFGHJKLLKJHGFGHJKLÖLKJHGGFDFGHJKJHGFFGHJKLKJHGFDFGHJKJVCVHJHTRTJ
-        #degrees = np.arctan(grad)*(180/np.pi)
-        #Replace points with gradients >= 10deg with closest point
+        segment_points[:, 2] = filtered_values
+        SLm_dict[segment] = segment_points
+
+    return SLm_dict
+
+#Takes ndarray with rows (x,y,z) and returns (alpha, z) (ie cartesian to cylindrical without radius)
+def convert_coords(input_array):
+    alphas = np.arctan2(input_array[:, 1], input_array[:, 0])
+    output_array = np.transpose(np.vstack((alphas, input_array[:, 2])))
+    return output_array
+
+"""
+def GPR_predicter(circle_dict, bin_dict, min_max_segment, max_depth):
+    for circle in range(1, max_depth+1):
+        seed_points_cart = circle_dict[circle]
+        seed_points_cylinder = convert_coords(seed_points_cart)
+        #Convert to (alpha, z) format
+        for segment in range(min_max_segment[0], min_max_segment[1]+1):
+            if segment == -2 and circle == 8:
+                print("hej")
+            bin_points_cart = bin_dict[(segment, circle)]
+            bin_points_cylindrical = convert_coords(bin_points_cart)
+            heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0], theta=0.1 * np.array([1, 1, 1])) #predicts on one bin at the time
+            bin_points_cart[:, 2] = heights
+            bin_dict[(segment, circle)] = bin_points_cart
     return
+"""
+
+def GPR_predicter(circle_dict, bin_dict):
+    for bin_tuple in bin_dict:
+        segment = bin_tuple[0]
+        circle = bin_tuple[1]
+        seed_points_cart = circle_dict[circle]
+        seed_points_cylinder = convert_coords(seed_points_cart)
+
+
+        bin_points_cart = bin_dict[bin_tuple]
+        bin_points_cylindrical = convert_coords(bin_points_cart)
+        heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0],
+                              theta=0.1 * np.array([1, 1, 1]))  # predicts on one bin at the time
+        bin_points_cart[:, 2] = heights
+        bin_dict[(segment, circle)] = bin_points_cart
+
+    return bin_dict
 
 def get_min_PL(bin_dict):
     return
 
-#Assume the pointcloud has gone through initial pruning with r < 100 or similar
-# Max_depth
-d_alpha = (math.pi/2)/2
-d_r = 1
-bin_keys = get_bin_keys(points, d_alpha, d_r)
-bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, points)
-max_min_segment = [0, 2]
-max_depth_ind = 3
-#TODO: find good ways of finding max and min segment and max depth
-SLm = make_seg_line(min_bin_dict, max_depth_ind, max_min_segment)
+if True:
 
 
+    # Generate point cloud
+    n = 100
+    x = np.linspace(-4.99, 4.99, n)
+    y = np.linspace(-4.99, 4.99, n)
+    xx, yy = np.meshgrid(x, y)
+    degf = 3
 
-print(min_seg_dict)
-print("-------------")
-print(min_bin_dict)
+    noise = ((np.random.chisquare(df=degf, size=(n, n)) - (
+                degf - 2)) / 5)  # ** 2  # The method works a lot better with noise that is chisquare**2
+    zz = np.multiply(np.sin(xx), np.cos(yy)) + noise
+
+    nrows, ncols = xx.shape
+    xarray = np.reshape(xx, (nrows * ncols, 1))[:, 0]
+    yarray = np.reshape(yy, (nrows * ncols, 1))[:, 0]
+    zarray = np.reshape(zz, (nrows * ncols, 1))[:, 0]
+
+    pcl = np.transpose(np.array([xarray, yarray, zarray]))
+    points = pcl
+
+    """
+    points = np.array([[0.5, 0.5, 0],
+                       [0, 0.5, 0.1],
+                       [0.5, 0, 0.2],
+                       [1.1, 0, 0.6],
+                       [0.1, 0, 0],
+                       [1, 1, 0.3],
+                       [1, 2, 0.4],
+                       [2, 1, 0.5],
+                       [0.5, 1, 0.6],
+                       [1, 0.5, 0.7],
+                       [1, 0.6, 0.8],
+                       [0.55, 1.1, 0.9]])
+    
+
+    #2D -scatterplot
+    # plt.scatter(points[:,0], points[:,1])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], s=1)
+    plt.show()
+    
+    """
+
+    #Assume the pointcloud has gone through initial pruning with r < 100 or similar
+    # Max_depth
+    d_alpha = (np.pi/2)/2
+    d_r = 1
+    bin_keys = get_bin_keys(points, d_alpha, d_r)
+    bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, points)
+    max_depth_ind, min_max_segment = find_min_max_index(bin_keys)
+    #max_min_segment = [-3,4]#[0, 2]
+    #max_depth_ind = 8#3
+    #TODO: find good ways of finding max and min segment and max depth
+    SLm, circle_index_dictionary = make_seg_line(min_bin_dict, max_depth_ind, min_max_segment)
+    sdm = filter_segments(SLm, fract=1/20, iterations=2, large_slope=10)
+
+    SLn = make_circles(sdm, circle_index_dictionary, max_depth_ind, min_max_segment)
 
 
-#bin_indexes = np.unique(bin_keys, axis = 0)
-#print(bin_indexes)
-#print(bin_keys)
+    bin_dict_final = GPR_predicter(SLn, bin_dict)
+    #bin_indexes = np.unique(bin_keys, axis = 0)
+    #print(bin_indexes)
+    #print(bin_keys)
+    print("HEJHEJHEJ")
 
+
+#test grad_filter -seems to work
+if False:
+    r = np.array([0,1,2,3,4])
+    z = np.array([0,0.1,1,1.2,1.3])
+    val = grad_filter(z,r, large_slope=10)
+    print(val)

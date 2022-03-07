@@ -81,7 +81,7 @@ def hyperparameter_optimizer(data_dict, N, initial_guess):
 
 
 #------------------ Computations to be added in main ------------------------------------#
-if True:
+if False:
     a = np.array([1])
     b = np.array([1, 2, 3])
     #print(make_cov_fcn(a, b))
@@ -114,7 +114,7 @@ if False: #test partial grad-matrices
     print(Ksf)
     print(Ksn) #Seems correct
 
-if True:
+if False:
     data = {}
     data[0] = np.array([[0.1, 1],
                   [0.2, 0.4],
