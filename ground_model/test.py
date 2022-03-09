@@ -221,8 +221,8 @@ def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, thres
     threshold = threshold
     d_alpha = d_alpha
     d_r = d_r
-    bin_keys = get_bin_keys(points, d_alpha, d_r)
-    bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, points)
+    bin_keys = get_bin_keys(point_cloud, d_alpha, d_r)
+    bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, point_cloud)
     max_depth_ind, min_max_segment = find_min_max_index(bin_keys)
 
     #RWLR-step
@@ -303,7 +303,7 @@ if True:
     zarray = np.reshape(zz, (nrows * ncols, 1))[:, 0]
 
     pcl = np.transpose(np.array([xarray, yarray, zarray]))
-    points = pcl #Used later - perhaps
+    #points = pcl #Used later - perhaps
 
     #Plot Input
     fig = plt.figure(1)

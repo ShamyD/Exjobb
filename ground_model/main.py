@@ -1,6 +1,7 @@
 from RWLR import *
 import numpy as np
 import matplotlib.pyplot as plt
+from HybridRegression import *
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -8,7 +9,7 @@ if __name__ == '__main__':
 
     #--------------- Ground Surface Point Filtering -------------------#
     # 2D-DEMO
-    if True:
+    if False:
         # Generate point cloud
         n = 100
         x = np.linspace(-4.99, 4.99, n)
@@ -66,7 +67,7 @@ if __name__ == '__main__':
 
 
     # 1D-DEMO
-    if True:
+    if False:
         n = 2000
         stop = 50
         x = np.linspace(0, stop, num=n, endpoint=True)
@@ -84,6 +85,92 @@ if __name__ == '__main__':
 
     # ---------------------- Hybrid Regression Technique ------------------------- #
 
+    if True:
+        # Generate point cloud
+        n = 100
+        x = np.linspace(0.01, 4.99, n)
+        y = np.linspace(0.01, 4.99, n)
+        xx, yy = np.meshgrid(x, y)
+        degf = 3
+
+        noise = ((np.random.chisquare(df=degf, size=(n, n)) - (
+                degf - 2)) / 5)  # ** 2  # The method works a lot better with noise that is chisquare**2
+        zz = np.multiply(np.sin(xx), np.cos(yy)) + noise
+
+        nrows, ncols = xx.shape
+        xarray = np.reshape(xx, (nrows * ncols, 1))[:, 0]
+        yarray = np.reshape(yy, (nrows * ncols, 1))[:, 0]
+        zarray = np.reshape(zz, (nrows * ncols, 1))[:, 0]
+
+        pcl = np.transpose(np.array([xarray, yarray, zarray]))
+        points = pcl  # Used later - perhaps
+
+        # Plot Input
+        fig = plt.figure(1)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
+        plt.show()
+
+        # Hybrid Regression step
+        gp, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02)
+        # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
+        # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
+
+        # Plot Input
+        fig = plt.figure(1)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
+        # plt.show()
+
+        # Plot Result Step
+        fig = plt.figure(2)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1)
+        plt.show()
+
+    if True:
+        # Generate point cloud
+        n = 100
+        x = np.linspace(-4.99, 4.99, n)
+        y = np.linspace(-4.99, 4.99, n)
+        xx, yy = np.meshgrid(x, y)
+        degf = 3
+
+        noise = ((np.random.chisquare(df=degf, size=(n, n)) - (
+                degf - 2)) / 5)  # ** 2  # The method works a lot better with noise that is chisquare**2
+        zz = np.multiply(np.sin(xx), np.cos(yy)) + noise
+
+        nrows, ncols = xx.shape
+        xarray = np.reshape(xx, (nrows * ncols, 1))[:, 0]
+        yarray = np.reshape(yy, (nrows * ncols, 1))[:, 0]
+        zarray = np.reshape(zz, (nrows * ncols, 1))[:, 0]
+
+        pcl = np.transpose(np.array([xarray, yarray, zarray]))
+        points = pcl  # Used later - perhaps
+
+        # Plot Input
+        fig = plt.figure(1)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
+        plt.show()
+
+        # Hybrid Regression step
+        gp, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, threshold=0.1)
+        # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
+        # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
+
+        # Plot Input
+        fig = plt.figure(1)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
+        # plt.show()
+
+        # Plot Result Step
+        fig = plt.figure(2)
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1, c=[1, 0, 0])
+        ax.plot_wireframe(xx, yy, np.multiply(np.sin(xx), np.cos(yy)))
+        plt.show()
 
 
         #gradient = np.gradient(y, x) - y the f-values and x is the spacing
