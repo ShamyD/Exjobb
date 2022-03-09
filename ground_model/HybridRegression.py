@@ -12,7 +12,7 @@ def make_cov_fcn(x1, x2, l_const=1, sig_f=1, sig_n=1, is_noise=False):
 #Theta is presumed to be on form: (l_const, sig_f, sig_n)
 #seed is ndarray with (alpha, z) elements
 #bin_points array of alpha:s
-def GPR_predict(seed, bin_points, theta = 0.1*np.array([1, 1, 1])):
+def GPR_predict(seed, bin_points, theta = 0.01*np.array([20, 25, 4])):
     l_const = theta[0]
     sig_f = theta[1]
     sig_n = theta[2]
@@ -88,9 +88,9 @@ if False:
     #print(make_cov_fcn(b,b,is_noise=True))
     s = np.array([[0.1, 1],
                   [0.2, 0.4],
-                  [0.3, -0.3],
+                  [0.3, -0.4],
                   [0.4, -1]])
-    bin_points = np.array([0.22])
+    bin_points = np.array([0.6])
     print(GPR_predict(s, bin_points))
 
 if False:
