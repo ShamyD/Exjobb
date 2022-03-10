@@ -87,8 +87,13 @@ if __name__ == '__main__':
 
     if True:
         # Generate point cloud
+
+        #TEST TO SEE WHETHER HYBRID MODEL CAN HANDLE LARGE EMPTY SPACES
         n = 100
-        x = np.linspace(0.01, 4.99, n)
+        x1 = np.linspace(0.01, 2, int(n/2))
+        x2 = np.linspace(3, 4.99, int(n/2))
+        x = np.hstack([x1, x2])
+
         y = np.linspace(0.01, 4.99, n)
         xx, yy = np.meshgrid(x, y)
         degf = 3
@@ -105,27 +110,41 @@ if __name__ == '__main__':
         pcl = np.transpose(np.array([xarray, yarray, zarray]))
         points = pcl  # Used later - perhaps
 
+
         # Plot Input
         fig = plt.figure(1)
+        fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
         plt.show()
+
 
         # Hybrid Regression step
         gp, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02)
         # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
         # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
 
+        fig = plt.figure(3)
+        fig.suptitle('Hybrid Model filter points')
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(pcf[:, 0], pcf[:, 1], pcf[:, 2], s=1)
+        #plt.show()
+
+
+
         # Plot Input
         fig = plt.figure(1)
+        fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
         # plt.show()
 
         # Plot Result Step
         fig = plt.figure(2)
+        fig.suptitle('Ground according to Hybrid Model')
         ax = fig.add_subplot(projection='3d')
-        ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1)
+        ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1,  c=[1, 0, 0])
+        ax.plot_wireframe(xx, yy, np.multiply(np.sin(xx), np.cos(yy)))
         plt.show()
 
     if True:
@@ -150,6 +169,7 @@ if __name__ == '__main__':
 
         # Plot Input
         fig = plt.figure(1)
+        fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
         plt.show()
@@ -161,12 +181,14 @@ if __name__ == '__main__':
 
         # Plot Input
         fig = plt.figure(1)
+        fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
         # plt.show()
 
         # Plot Result Step
         fig = plt.figure(2)
+        fig.suptitle('Ground according to Hybrid Model')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1, c=[1, 0, 0])
         ax.plot_wireframe(xx, yy, np.multiply(np.sin(xx), np.cos(yy)))

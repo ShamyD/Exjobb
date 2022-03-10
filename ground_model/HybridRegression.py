@@ -5,7 +5,7 @@ import statsmodels.api as sm
 def make_cov_fcn(x1, x2, l_const=1, sig_f=1, sig_n=1, is_noise=False):
     xx1, xx2 = np.meshgrid(x2, x1) #rows correspond to x1 and columns to x2
     l_const = 2*(l_const**2)
-    K = (sig_f**2) * np.exp((-(xx1 - xx2)**2)/l_const)
+    K = (sig_f**2) * np.exp(-((xx1 - xx2)**2)/l_const)
     if is_noise and len(x1) == len(x2):
         K = K + np.identity(len(x1))*sig_n**2
     return K
@@ -30,50 +30,69 @@ def make_partial_grad_matrices(x, theta):
     sig_f = theta[1]
     sig_n = theta[2]
     xx1, xx2 = np.meshgrid(x, x)
-    d_Kl = (sig_f ** 2) * np.exp((-(xx1 - xx2) ** 2) / (2*l_const**2))*((xx1 - xx2)**2)/(l_const**3)
-    d_Ksig_f = 2*sig_f*np.exp((-(xx1 - xx2) ** 2) / (2*l_const**2))
+    d_Kl = (sig_f ** 2) * np.exp(-((xx1 - xx2) ** 2) / (2*l_const**2))*((xx1 - xx2)**2)/(l_const**3)
+    d_Ksig_f = 2*sig_f*np.exp(-((xx1 - xx2) ** 2) / (2*l_const**2))
     d_Ksig_n = 2*sig_n*np.identity(len(x))
     return d_Kl, d_Ksig_f, d_Ksig_n
 
+#Takes ndarray with rows (x,y,z) and returns (alpha, z) (ie cartesian to cylindrical without radius)
+def convert_coords(input_array):
+    alphas = np.arctan2(input_array[:, 1], input_array[:, 0])
+    output_array = np.transpose(np.vstack((alphas, input_array[:, 2])))
+    return output_array
+
 #data_dict[n] = ndarray of data points (alpha, z) for n:th circle
 #Total of N circles [0:N-1]
-def hyperparameter_optimizer(data_dict, initial_guess):
-
+def hyperparameter_optimizer(data_dict, mean_data_dict, initial_guess):
+    print("Hej")
     #Nested function so that the function to be minimized only takes theta as input
     def log_likelihood_loss(theta):
         loss_vect = np.zeros([len(data_dict), ])
-        for group in range(len(data_dict)): #For every circle(group), calculate loss and add together
-            data = data_dict[group]
-            z = data[:, 1]
+        for circle in data_dict: #For every circle(group), calculate loss and add together
+            data = data_dict[circle]
+            data = convert_coords(data) #to get (alpha, z) - format
+            mean = mean_data_dict[circle]
+            z = data[:, 1] - mean
+            tmp = np.mean(z)
             alpha = data[:, 0]
             cov_matrix = make_cov_fcn(alpha, alpha, theta[0], theta[1], theta[2], is_noise=True)
-            loss_vect[group] = 0.5 * ((z.dot(cov_matrix)).dot(z) + np.log(np.linalg.det(cov_matrix)) + np.log(2*np.pi)*len(z))
+            cov_inv = np.linalg.inv(cov_matrix)
 
+            term1 = (z.dot(cov_inv)).dot(z)
+            term2 = np.log(np.linalg.det(cov_matrix))
+            term3 = np.log(2*np.pi)*len(z)
+            loss_vect[circle] = 0.5 * (term1 + term2 + term3)
 
-        return np.sum(loss_vect)
+        loss = np.sum(loss_vect)
+        return loss
 
     def loss_gradient(theta):
         grad_vect = np.zeros([len(data_dict), 3])
-        for group in range(len(data_dict)): #I've chosen the more memory intensive method since it is clearer and likely less computationally heavy
-            data = data_dict[group]
-            z = data[:, 1]
+        for circle in data_dict: #I've chosen the more memory intensive method since it is clearer and likely less computationally heavy - WHAT DID I MEAN?
+            data = data_dict[circle]
+            data = convert_coords(data) #to get (alpha, z) - format
+            mean = mean_data_dict[circle]
+            z = data[:, 1] - mean
+            tmp = np.mean(z)
             alpha = data[:, 0]
             cov_matrix = make_cov_fcn(alpha, alpha, theta[0], theta[1], theta[2], is_noise=True)
             cov_inv = np.linalg.inv(cov_matrix)
             a_matrix = cov_inv.dot(z)
-            common_matrix = a_matrix.dot(a_matrix) - cov_inv
+            common_matrix = np.outer(a_matrix, a_matrix)
+            common_matrix = common_matrix - cov_inv
 
             Kl, Ksigf, Ksign = make_partial_grad_matrices(alpha, theta)
-            
+
             #Compute hyperparameter-specific components
             grad_l = 0.5*np.trace(common_matrix.dot(Kl))
             grad_sigf = 0.5*np.trace(common_matrix.dot(Ksigf))
             grad_sign = 0.5*np.trace(common_matrix.dot(Ksign))
-            grad_vect[group, :] = np.array([-grad_l, -grad_sigf, -grad_sign])
+            grad_vect[circle, :] = -np.array([grad_l, grad_sigf, grad_sign])
 
-        return np.sum(grad_vect, axis=0)
+        grad = np.sum(grad_vect, axis=0)
+        return grad
 
-    result = minimize(log_likelihood_loss, initial_guess, jac=loss_gradient, tol=0.001)
+    result = minimize(log_likelihood_loss, initial_guess, jac=loss_gradient, tol=0.001, method='BFGS')
     print(result)
     #ADD EXCEPTION HANDLING IF BAD INPUT IS GIVEN - RESULT CONTAINS GOOD INFORMATION TO USE
     return result.x
@@ -218,13 +237,6 @@ def filter_segments(SLm_dict, fract, iterations, large_slope):
         plt.show()
 """
 
-
-#Takes ndarray with rows (x,y,z) and returns (alpha, z) (ie cartesian to cylindrical without radius)
-def convert_coords(input_array):
-    alphas = np.arctan2(input_array[:, 1], input_array[:, 0])
-    output_array = np.transpose(np.vstack((alphas, input_array[:, 2])))
-    return output_array
-
 """
 def GPR_predicter(circle_dict, bin_dict, min_max_segment, max_depth):
     for circle in range(1, max_depth+1):
@@ -248,7 +260,7 @@ def filter_points_hybrid(bin_average, heights, threshold):
     ground_indeces = np.argwhere(np.abs(bin_average - heights) < threshold)
     return ground_indeces.reshape(len(ground_indeces),)
 
-def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold):
+def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, theta=0.01*np.array([20, 25, 4])):
     bin_average_dict = {}
     filtered_points_in_bin_dict = {}
     for bin_tuple in bin_dict:
@@ -268,7 +280,7 @@ def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold):
         bin_points_cylindrical[:, 1] = bin_points_cylindrical[:, 1] - mean
 
         #Prediction
-        heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0])  # predicts on one bin at the time
+        heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0], theta=theta)  # predicts on one bin at the time
         true_predicted_heights = heights + mean #Mean corrected heights of GPR-prediction
         average_height = np.mean(true_predicted_heights)
         bin_average_dict[bin_tuple] = average_height
@@ -307,8 +319,13 @@ def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, thres
     #GPR-step
     SLn = make_circles(sdm, circle_index_dictionary, max_depth_ind, min_max_segment)
     circle_mean_dict = circle_mean(SLn)
+
+    #From other method
+    theta = np.array([-0.25473245, 0.3997241, 0.28976028]) # - Pretty bad
+    theta = 0.01 * np.array([20, 25, 4])
+    ########################
     bin_dict_predictions, bin_average_dict, filtered_points_dict = GPR_predicter(SLn, bin_dict, circle_mean_dict,
-                                                                                 threshold)
+                                                                                 threshold, theta=theta)
     # bin_dict_final = filter_points_hybrid(bin_average_dict, bin_dict, threshold)
     point_cloud_fit = bin_dict2pcl(bin_dict_predictions)
     ground_points = bin_dict2pcl(filtered_points_dict)
@@ -429,11 +446,11 @@ if True:
         #-----------ADDED OPTIMIZER STEP -----------------------#
         #data_dict: seeds for every circle
         #N = max_depth_ind
-        print(hyperparameter_optimizer(data_dict=SLn, initial_guess=0.01*np.array([20, 25, 4])))
+        theta = hyperparameter_optimizer(data_dict=SLn, mean_data_dict=circle_mean_dict, initial_guess=0.01*np.array([20, 25, 4]))
 
         #---------------------------------------------------------#
         bin_dict_predictions, bin_average_dict, filtered_points_dict = GPR_predicter(SLn, bin_dict, circle_mean_dict,
-                                                                                     threshold)
+                                                                                     threshold, theta=theta)
         # bin_dict_final = filter_points_hybrid(bin_average_dict, bin_dict, threshold)
         point_cloud_fit = bin_dict2pcl(bin_dict_predictions)
         ground_points = bin_dict2pcl(filtered_points_dict)
