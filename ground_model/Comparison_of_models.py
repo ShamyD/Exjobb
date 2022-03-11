@@ -22,7 +22,7 @@ zarray = np.reshape(zz, (nrows * ncols, 1))[:, 0]
 pcl = np.transpose(np.array([xarray, yarray, zarray]))
 
 #HYBRID MODEL:
-hybrid_ground_points, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, threshold=0.05)
+hybrid_ground_points, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, threshold=0.05)
 
 #GROUND SURFACE POINTS FILTERING_ONLY RWLR:
 GSPF_ground_points = GSPF(pcl, dx=0.2, dy=0.2, fract=1/20, threshold=0.1, delta=0.05, iterations=5, do_print=False)

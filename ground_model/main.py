@@ -111,18 +111,18 @@ if __name__ == '__main__':
         points = pcl  # Used later - perhaps
 
 
-        # Plot Input
+        """# Plot Input
         fig = plt.figure(1)
         fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
-        plt.show()
-
+        plt.show()"""
 
         # Hybrid Regression step
-        gp, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02)
+        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02)
         # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
         # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
+        print(ground_func(np.array([[1, 1], [2, 2]])))
 
         fig = plt.figure(3)
         fig.suptitle('Hybrid Model filter points')
@@ -175,9 +175,10 @@ if __name__ == '__main__':
         plt.show()
 
         # Hybrid Regression step
-        gp, bad, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, threshold=0.1)
+        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, threshold=0.1)
         # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
         # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
+
 
         # Plot Input
         fig = plt.figure(1)

@@ -303,6 +303,21 @@ def bin_dict2pcl(bin_dict):
 
     return pcl_array
 
+#takes the prediction for every bin and returns function from (x,y) to representative bin's predicted height z_hat
+def make_ground_function(bin_average_dict, d_r, d_alpha):
+
+    #points ndarray on form (x,y)
+    def ground_func(points): #SHOULD BE POSSIBLE TO PARALELLIZE WITH #np.vectorize(dict.get)(x) AND SO ON - JUST NEED TO CONVERT NDARRAY TO NDARRAY OF TUPLES
+        keys = get_bin_keys(points, d_alpha, d_r) #Nx2 ndarray
+        heights = np.zeros(shape=(points.shape[0], 1))
+        for row in range(points.shape[0]):
+            key = keys[row, :]
+            heights[row] = bin_average_dict[(key[0], key[1])]
+
+        return heights
+
+    return ground_func
+
 # point_cloud, dx, dy, fract = 1/20, threshold = 0.1, delta = 0.2, iterations = 2, do_print = False
 def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, threshold=0.3, iterations=5, large_slope=10):
     threshold = threshold
@@ -330,9 +345,11 @@ def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, thres
     point_cloud_fit = bin_dict2pcl(bin_dict_predictions)
     ground_points = bin_dict2pcl(filtered_points_dict)
 
+    ground_function = make_ground_function(bin_average_dict, d_r, d_alpha)
+
 
     #TODO: Add optimizer step
-    return ground_points, bin_average_dict, point_cloud_fit
+    return ground_points,  ground_function, point_cloud_fit
 
 
 #------------------ Computations to be added in main ------------------------------------#
