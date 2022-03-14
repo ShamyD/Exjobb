@@ -252,7 +252,7 @@ def filter_points_hybrid(bin_average, heights, threshold):
     ground_indeces = np.argwhere(np.abs(bin_average - heights) < threshold)
     return ground_indeces.reshape(len(ground_indeces),)
 
-#Fill out gaps in average_bin_dict
+#Fill out gaps in average_bin_dict - Points in the outer circles are likely predicted using very little data and are more untrustworthy
 def fill_out_average_bins(bin_average_dict, max_depth_index, min_max_segment, circle_mean_dict, circle_dict, d_alpha, theta):
     for circle in range(max_depth_index):  # Should I include zero?
         mean = circle_mean_dict[circle]
@@ -273,6 +273,7 @@ def fill_out_average_bins(bin_average_dict, max_depth_index, min_max_segment, ci
 
     return bin_average_dict
 
+#Function that handles all predicting circle-wise. Returns bin_dictionary of all predicted points, bin_average_dictionary with the average prediction for every bin (filled out)
 def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, max_depth_index, min_max_segment, d_alpha, theta=0.01*np.array([20, 25, 4])):
     bin_average_dict = {}
     filtered_points_in_bin_dict = {}
@@ -307,7 +308,6 @@ def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, max_depth_
         bin_dict[bin_tuple] = bin_points_cart
 
     #FILL OUT bin_average_dict TO INVOLVE ALL INCLUDED BIN THAT HAVEN'T BEEN COVERED
-    #HERE
     bin_average_dict = fill_out_average_bins(bin_average_dict, max_depth_index, min_max_segment, circle_mean_dict, circle_dict, d_alpha, theta)
 
     return bin_dict, bin_average_dict, filtered_points_in_bin_dict
@@ -341,11 +341,11 @@ def make_ground_function(bin_average_dict, d_r, d_alpha):
 # point_cloud, dx, dy, fract = 1/20, threshold = 0.1, delta = 0.2, iterations = 2, do_print = False
 def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, threshold=0.3, iterations=5, large_slope=10, max_range=100):
 
-    #Filter points
+    #Filter out points further than max_range:
     indexes = np.argwhere(np.linalg.norm(point_cloud[:, :2], axis=1) < max_range)
     point_cloud = point_cloud[indexes.reshape(len(indexes),), :]
 
-
+    #Build relevant dictionaries for performing Hybrid Regression steps
     bin_keys = get_bin_keys(point_cloud, d_alpha, d_r)
     bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, point_cloud)
     max_depth_ind, min_max_segment = find_min_max_index(bin_keys)

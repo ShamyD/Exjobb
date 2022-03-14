@@ -90,9 +90,12 @@ if __name__ == '__main__':
 
         #TEST TO SEE WHETHER HYBRID MODEL CAN HANDLE LARGE EMPTY SPACES
         n = 100
-        x1 = np.linspace(0.01, 2, int(n/2))
-        x2 = np.linspace(3, 4.99, int(n/2))
-        x = np.hstack([x1, x2])
+        x = np.linspace(0.01, 4.99, n)
+
+        if True:
+            x1 = np.linspace(0.01, 2, int(n/2))
+            x2 = np.linspace(3, 4.99, int(n/2))
+            x = np.hstack([x1, x2])
 
         y = np.linspace(0.01, 4.99, n)
         xx, yy = np.meshgrid(x, y)
@@ -111,18 +114,48 @@ if __name__ == '__main__':
         points = pcl  # Used later - perhaps
 
 
-        """# Plot Input
+        # Plot Input
         fig = plt.figure(1)
         fig.suptitle('Input Pointcloud')
         ax = fig.add_subplot(projection='3d')
         ax.scatter(pcl[:, 0], pcl[:, 1], pcl[:, 2], s=1)
-        plt.show()"""
+        #plt.show()
 
         # Hybrid Regression step
-        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, max_range=3)
+        # d_r=0.1, d_alpha=0.02 - good choice here
+        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, max_range=10)
+        #gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1/5, d_alpha=0.02, max_range=10)
         # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
         # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
         print(ground_func(np.array([[20, 20], [0.5, 0.5]])))
+
+        ground_x = xx.reshape(-1)
+        ground_y = yy.reshape(-1)
+        ground = np.transpose(np.array([ground_x, ground_y]))
+        ground_z = ground_func(ground)
+
+        ground_x = ground_x.reshape(n, n)
+        ground_y = ground_y.reshape(n, n)
+        ground_z = ground_z.reshape(n, n)
+
+        fig = plt.figure(2)
+        fig.suptitle('Ground-function according to Hybrid Model')
+        ax = fig.add_subplot(projection='3d')
+        #ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1,  c=[1, 0, 0])
+        ax.plot_wireframe(ground_x, ground_y, ground_z)
+        #plt.show()
+
+
+        # Plot Result Step
+        fig = plt.figure(3)
+        fig.suptitle('Ground with no noise')
+        ax = fig.add_subplot(projection='3d')
+        #ax.scatter(gp[:, 0], gp[:, 1], gp[:, 2], s=1,  c=[1, 0, 0])
+        ax.plot_wireframe(xx, yy, np.multiply(np.sin(xx), np.cos(yy)))
+        plt.show()
+
+
+        ##Plots focusing on points
 
         fig = plt.figure(3)
         fig.suptitle('Hybrid Model filter points')
