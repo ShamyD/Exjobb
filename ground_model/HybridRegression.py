@@ -208,8 +208,11 @@ def grad_filter(value, pos, large_slope):
 
     #For every index in large_slope_indexes, find closest pos in clean_position_array
     for ind in large_slope_indexes:
-        idx = (np.abs(clean_position_array - pos[ind])).argmin() #index in clean array which is to be replicated
-        value[ind] = clean_value_array[idx]
+        if len(clean_position_array) == 0:
+            print("Warning: All gradients in segment above large slope threshold")
+        else:
+            idx = (np.abs(clean_position_array - pos[ind])).argmin() #index in clean array which is to be replicated
+            value[ind] = clean_value_array[idx]
 
     return value
 
@@ -220,10 +223,16 @@ def filter_segments(SLm_dict, fract, iterations, large_slope):
     for segment in SLm_dict:
         segment_points = SLm_dict[segment]
         z = segment_points[:, 2]
-        r = np.linalg.norm(segment_points[:, :2], axis=1)
-        regr = lowess(z, r, frac=fract, it=iterations, return_sorted=False)
-        #Gradient filter on points
-        filtered_values = grad_filter(regr, r, large_slope)
+        if len(z) < 2:
+            print("Warning: segment contains only one value")
+            filtered_values = z #If we cannot use grad filter, filtered values are assigned the intitial values
+
+        else:
+            r = np.linalg.norm(segment_points[:, :2], axis=1)
+            regr = lowess(z, r, frac=fract, it=iterations, return_sorted=False)
+
+            # Gradient filter on points
+            filtered_values = grad_filter(regr, r, large_slope)
 
         segment_points[:, 2] = filtered_values
         SLm_dict[segment] = segment_points
@@ -237,30 +246,34 @@ def filter_segments(SLm_dict, fract, iterations, large_slope):
         plt.show()
 """
 
-"""
-def GPR_predicter(circle_dict, bin_dict, min_max_segment, max_depth):
-    for circle in range(1, max_depth+1):
-        seed_points_cart = circle_dict[circle]
-        seed_points_cylinder = convert_coords(seed_points_cart)
-        #Convert to (alpha, z) format
-        for segment in range(min_max_segment[0], min_max_segment[1]+1):
-            if segment == -2 and circle == 8:
-                print("hej")
-            bin_points_cart = bin_dict[(segment, circle)]
-            bin_points_cylindrical = convert_coords(bin_points_cart)
-            heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0], theta=0.1 * np.array([1, 1, 1])) #predicts on one bin at the time
-            bin_points_cart[:, 2] = heights
-            bin_dict[(segment, circle)] = bin_points_cart
-    return
-"""
-
 #Takes in average bin height and points in bin:
 #Outputs array of indexes for filtered points
 def filter_points_hybrid(bin_average, heights, threshold):
     ground_indeces = np.argwhere(np.abs(bin_average - heights) < threshold)
     return ground_indeces.reshape(len(ground_indeces),)
 
-def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, theta=0.01*np.array([20, 25, 4])):
+#Fill out gaps in average_bin_dict
+def fill_out_average_bins(bin_average_dict, max_depth_index, min_max_segment, circle_mean_dict, circle_dict, d_alpha, theta):
+    for circle in range(max_depth_index):  # Should I include zero?
+        mean = circle_mean_dict[circle]
+
+        #Extract seed points for circle and points in the given bin
+        seed_points_cart = circle_dict[circle]
+        seed_points_cylindrical = convert_coords(seed_points_cart)
+        seed_points_cylindrical[:, 1] = seed_points_cylindrical[:, 1] - mean
+
+        for segment in range(min_max_segment[0], min_max_segment[1] + 1):
+            if (segment, circle) not in bin_average_dict:
+                #Centre point of bin
+                # Go from segment to centre of segment angle alpha
+                alpha = (segment-0.5)*d_alpha
+                bin_average_dict[(segment, circle)] = GPR_predict(seed_points_cylindrical, alpha, theta)
+
+#def GPR_predict(seed, bin_points, theta = 0.01*np.array([20, 25, 4])):
+
+    return bin_average_dict
+
+def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, max_depth_index, min_max_segment, d_alpha, theta=0.01*np.array([20, 25, 4])):
     bin_average_dict = {}
     filtered_points_in_bin_dict = {}
     for bin_tuple in bin_dict:
@@ -270,17 +283,16 @@ def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, theta=0.01
 
         #Extract seed points for circle and points in the given bin
         seed_points_cart = circle_dict[circle]
-        seed_points_cylinder = convert_coords(seed_points_cart)
+        seed_points_cylindrical = convert_coords(seed_points_cart)
         bin_points_cart = bin_dict[bin_tuple]
         bin_points_cylindrical = convert_coords(bin_points_cart)
 
         #Make zero mean for passing into GPR
-        s = seed_points_cylinder[:, 1]
-        seed_points_cylinder[:, 1] = seed_points_cylinder[:, 1] - mean
+        seed_points_cylindrical[:, 1] = seed_points_cylindrical[:, 1] - mean
         bin_points_cylindrical[:, 1] = bin_points_cylindrical[:, 1] - mean
 
         #Prediction
-        heights = GPR_predict(seed_points_cylinder, bin_points_cylindrical[:, 0], theta=theta)  # predicts on one bin at the time
+        heights = GPR_predict(seed_points_cylindrical, bin_points_cylindrical[:, 0], theta=theta)  # predicts on one bin at the time
         true_predicted_heights = heights + mean #Mean corrected heights of GPR-prediction
         average_height = np.mean(true_predicted_heights)
         bin_average_dict[bin_tuple] = average_height
@@ -293,6 +305,10 @@ def GPR_predicter(circle_dict, bin_dict, circle_mean_dict, threshold, theta=0.01
 
         bin_points_cart[:, 2] = true_predicted_heights
         bin_dict[bin_tuple] = bin_points_cart
+
+    #FILL OUT bin_average_dict TO INVOLVE ALL INCLUDED BIN THAT HAVEN'T BEEN COVERED
+    #HERE
+    bin_average_dict = fill_out_average_bins(bin_average_dict, max_depth_index, min_max_segment, circle_mean_dict, circle_dict, d_alpha, theta)
 
     return bin_dict, bin_average_dict, filtered_points_in_bin_dict
 
@@ -312,17 +328,24 @@ def make_ground_function(bin_average_dict, d_r, d_alpha):
         heights = np.zeros(shape=(points.shape[0], 1))
         for row in range(points.shape[0]):
             key = keys[row, :]
-            heights[row] = bin_average_dict[(key[0], key[1])]
+            if (key[0], key[1]) not in bin_average_dict:
+                print("point with index " + str(row) + " is outside ground area!")
+                heights[row] = None
+            else:
+                heights[row] = bin_average_dict[(key[0], key[1])]
 
         return heights
 
     return ground_func
 
 # point_cloud, dx, dy, fract = 1/20, threshold = 0.1, delta = 0.2, iterations = 2, do_print = False
-def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, threshold=0.3, iterations=5, large_slope=10):
-    threshold = threshold
-    d_alpha = d_alpha
-    d_r = d_r
+def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, threshold=0.3, iterations=5, large_slope=10, max_range=100):
+
+    #Filter points
+    indexes = np.argwhere(np.linalg.norm(point_cloud[:, :2], axis=1) < max_range)
+    point_cloud = point_cloud[indexes.reshape(len(indexes),), :]
+
+
     bin_keys = get_bin_keys(point_cloud, d_alpha, d_r)
     bin_dict, min_bin_dict, seg_dict, min_seg_dict, circ_dict, min_circ_dict = make_dicts(bin_keys, point_cloud)
     max_depth_ind, min_max_segment = find_min_max_index(bin_keys)
@@ -340,7 +363,8 @@ def hybrid_regression(point_cloud, d_alpha=(np.pi/2)/2, d_r=1, fract=1/20, thres
     theta = 0.01 * np.array([20, 25, 4])
     ########################
     bin_dict_predictions, bin_average_dict, filtered_points_dict = GPR_predicter(SLn, bin_dict, circle_mean_dict,
-                                                                                 threshold, theta=theta)
+                                                                                 threshold, theta=theta, max_depth_index=max_depth_ind, min_max_segment=min_max_segment, d_alpha=d_alpha)
+    #max_depth, min_max_segment, d_alpha
     # bin_dict_final = filter_points_hybrid(bin_average_dict, bin_dict, threshold)
     point_cloud_fit = bin_dict2pcl(bin_dict_predictions)
     ground_points = bin_dict2pcl(filtered_points_dict)
@@ -441,7 +465,7 @@ if False:
     init = 0.01*np.array([20, 25, 4])
     print(hyperparameter_optimizer(data, init))
 
-if True:
+if False:
     # point_cloud, dx, dy, fract = 1/20, threshold = 0.1, delta = 0.2, iterations = 2, do_print = False
     def hybrid_regression_tmp(point_cloud, d_alpha=(np.pi / 2) / 2, d_r=1, fract=1 / 20, threshold=0.3, iterations=5,
                           large_slope=10):

@@ -119,10 +119,10 @@ if __name__ == '__main__':
         plt.show()"""
 
         # Hybrid Regression step
-        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02)
+        gp, ground_func, pcf = hybrid_regression(pcl, d_r=0.1, d_alpha=0.02, max_range=3)
         # Note-crashes for spacing that is too fine (np.gradient - cannot seem to handle empty arrays)
         # Possible solution is to precheck the grid on the point_cloud - automatically compute d_r, d_alpha?
-        print(ground_func(np.array([[1, 1], [2, 2]])))
+        print(ground_func(np.array([[20, 20], [0.5, 0.5]])))
 
         fig = plt.figure(3)
         fig.suptitle('Hybrid Model filter points')
